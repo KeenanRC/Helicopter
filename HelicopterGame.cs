@@ -11,12 +11,22 @@ public class HelicopterGame
     private List<Buff> _buff = new List<Buff>();
     private List<Laser> _laser = new List<Laser>();
 
-
+    private Database database;
+    private QueryResult queryResult;
+    private Music music;
+    private SoundEffect Hcs;
+    private SoundEffect Star;
+    public string PlayerName{ get; set; }
+    public bool MenuOn;
+    private SoundEffect Laser;
+   
+    
     private  Timer GameTimer = new Timer("GameTimer");
     private Timer Cooldown = new Timer("CoolDown");
     private Timer BuffTimer = new Timer("BuffTimer");
     private Timer BuffSpawnTimer = new Timer("BuffSpawnTimer");
-    private long Highscore;
+    private int Highscore;
+    private int CurrentScore;
     public bool Quit
     {
         get
@@ -39,6 +49,16 @@ public class HelicopterGame
             _blocks.Remove(BLOCK);
         }
      }
+
+    private void LoadSounds()
+    {
+
+         music = new Music("FS16", "FS16.mp3");
+         Hcs = new SoundEffect("hcs", "chainsaw.wav");
+         Laser = new SoundEffect("laser", "laser.mp3");
+         Star = new SoundEffect("star", "star.mp3");
+
+    }
     public void ClearBuff()
     {
         List<Buff> RemoveBuff = new List<Buff>();
@@ -49,6 +69,38 @@ public class HelicopterGame
         foreach (Buff BUFF in RemoveBuff)
         {
             _buff.Remove(BUFF);
+        }
+    }
+    private void AddScore()
+    {
+
+  queryResult = database.RunSql($"INSERT INTO scoretable(name, highscore) VALUES ('{PlayerName}', {CurrentScore})");
+        if (queryResult.Successful)
+        {
+            Console.WriteLine("Added Score");
+        }
+        else
+        {
+            Console.WriteLine("Score Not added");
+        }
+
+    }
+
+        private void DisplayScores()
+    {
+      
+
+        queryResult = database.RunSql("SELECT rowid, name, highscore FROM scoretable");
+        if (queryResult.HasRow)
+        {
+            do
+            {
+                Int32 ID = queryResult.QueryColumnForInt(0);
+                string  name = queryResult.QueryColumnForString(1);
+                Int32 Score = queryResult.QueryColumnForInt(2);
+                Console.WriteLine($"ID: {ID}, Name: {name}, Score:{Score}");
+            }
+            while (queryResult.GetNextRow());
         }
     }
     public void Restart()
@@ -82,7 +134,10 @@ public class HelicopterGame
                 else
                 {
                     _Player.LevelEnd = true;
+                    AddScore();
                     GameTimer.Pause();
+                    break;
+
                 }
                 
                 
@@ -115,6 +170,8 @@ public class HelicopterGame
                 {
                 _Player.PowerUp = true;
                 BuffTimer.Start();
+                    SplashKit.PauseMusic();
+                    Star.Play();
 
                 }
                 if (BUFF.bufftype == Buff.BuffType.Ammo)
@@ -144,7 +201,7 @@ public class HelicopterGame
         if (_Player.LevelEnd == false)
         {
             _Window.Clear(Color.Black);
-            _Window.DrawText("The Score is " + GameTimer.Ticks / 10, Color.White, 0, (_Window.Height / 2) - 100);
+            _Window.DrawText("The Score is " + CurrentScore, Color.White, 0, (_Window.Height / 2) - 100);
             _Window.DrawText("Ammo: " + _Player.Ammo, Color.White, 0, (_Window.Height / 2) );
             _Window.DrawText("The High Score is " + Highscore, Color.White, 0, (_Window.Height / 2) + 100);
             _Player.Draw();
@@ -166,7 +223,7 @@ public class HelicopterGame
         if (_Player.LevelEnd == true)
         {
             _Window.DrawText("Press Mouse to Restart ", Color.Blue, (_Window.Width / 2), (_Window.Height / 2));
-
+           
 
         }
         _Window.Refresh(60);
@@ -177,16 +234,23 @@ public class HelicopterGame
         public void Update()
     {
         double LastBlockHeight = 50;
-        if ((GameTimer.Ticks / 10)> Highscore)
-        {
-            Highscore = GameTimer.Ticks / 10;
-        }
 
+        CurrentScore = Convert.ToInt32(GameTimer.Ticks / 10);
+        if (CurrentScore > Highscore)
+        {
+            Highscore = CurrentScore;
+        }
+       
         _Player.HandleImput(_Window);
         if (_Player.ResetLevel == true)
         {
             Restart();
             
+        }
+
+        if (!SplashKit.MusicPlaying())
+        {
+            music.Play();
         }
         Draw();
             if (_Player.LevelEnd == false)
@@ -252,11 +316,14 @@ public class HelicopterGame
                 SpawnBuff();
                 // Controls how often Buff Spawns
             }
-            if (BuffTimer.Ticks > 4000)
+            if (BuffTimer.Ticks > 5000)
             {
                 _Player.PowerUp = false;
                 BuffTimer.Stop();
-               //Controls how long the buff goes for
+                Star.Stop();
+                SplashKit.ResumeMusic();
+                //SplashKit.PlayMusic();
+                //Controls how long the buff goes for
             }
             if (_Player.Shoot)
             {
@@ -264,9 +331,15 @@ public class HelicopterGame
                 Laser laser = new Laser(_Player.X + (_Player.width/5), _Player.Y + _Player.height/2);
                 _laser.Add(laser);
                 _Player.Shoot = false;
+                 Laser.Play();
             }
 
 
+        }
+        if (_Player.DisplayScore == true)
+        {
+            DisplayScores();
+            _Player.DisplayScore = false;
         }
     }
 
@@ -339,12 +412,64 @@ public class HelicopterGame
         _blocks.Add(blocktest);
 
     }
+    public void StartingScreen()
+    {
+        _Window.Clear(Color.Black);
+        _Window.DrawText("Use Mouse to Fly", Color.Red, 100, 10 + _Window.Height / 2);
+        _Window.DrawText("Press Space to Shoot", Color.Red, 100, _Window.Height / 2);
+        _Window.DrawText("Press Mouse to Start", Color.Red, 350, 500);
+        _Window.DrawText("Press D to display scores", Color.Red, 100, 20 + _Window.Height / 2);
+        _Window.DrawText("Collect these Items", Color.Yellow, 600, 200);
+        _Window.DrawText("Blue Blocks can be destoryed when Invincible/Shot", Color.Yellow, 580, 330);
+
+        _Window.DrawText("Invincibility", Color.Yellow, 640, 230);
+        _Window.FillCircle(Color.AliceBlue, 600, 300, 24);
+        _Window.FillCircle(Color.Blue, 600, 300, 24 - 4);
+        _Window.FillCircle(Color.DeepSkyBlue, 600, 300, 24 - 8);
+        _Window.FillCircle(Color.SkyBlue, 600, 300, 24 - 12);
+        _Window.FillCircle(Color.MidnightBlue, 600, 300, 24 - 16);
+
+        _Window.DrawText("Gives Ammo", Color.Yellow, 640, 300);
+        _Window.FillCircle(Color.Red, 600, 240, 24);
+        _Window.FillCircle(Color.Blue, 600, 240, 24 - 4);
+        _Window.FillCircle(Color.Yellow, 600, 240, 24 - 8);
+        _Window.FillCircle(Color.Violet, 600, 240, 24 - 12);
+        _Window.FillCircle(Color.Green, 600, 240, 24 - 16);
+
+
+    }
 
     public HelicopterGame (Window w, Helicopter h)
         {
 
             _Player = h;
             _Window = w;
+        LoadSounds();
+        database = new Database("Score","DBScore");
+        queryResult = database.RunSql("CREATE TABLE IF NOT EXISTS scoretable(name VARCHAR(255), highscore INT)");
+        music.Play();
+        MenuOn = true;
+        PlayerName = "NoName";
+
+        if (queryResult.Successful)
+        {
+            Console.WriteLine("Table created");
+        }
+        else
+        {
+            Console.WriteLine("Table NOT created");
+        }
+
+        
+        queryResult = database.RunSql("INSERT INTO scoretable(name, highscore) VALUES ('Test3', 2394)");
+        if (queryResult.Successful)
+        {
+            Console.WriteLine("Added Score");
+        }
+        else
+        {
+            Console.WriteLine("Score Not added");
+        }
 
 
         BuffSpawnTimer.Start();

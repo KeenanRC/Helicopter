@@ -14,6 +14,7 @@ public class Helicopter
     public Bitmap HelicopterBM2;
     public bool Quit { get;  set; }
     public bool LevelEnd { get; set; }
+    public bool DisplayScore { get; set; }
     public bool ResetLevel { get; set; }
     public double speed = 0;
     public bool PowerUp { get; set; }
@@ -52,8 +53,10 @@ public class Helicopter
         ResetLevel = false;
          Animator = ani;
         Shoot = false;
-        Ammo = 0;
+        Ammo = 2;
         PowerUp = false;
+        DisplayScore = false;
+
 
     }
     public void Draw()
@@ -125,6 +128,11 @@ public class Helicopter
                 Ammo = Ammo-1;
             }
           
+        }
+        if (SplashKit.KeyTyped(KeyCode.DKey))
+        {
+            DisplayScore = true;
+
         }
         if (SplashKit.MouseClicked(MouseButton.LeftButton) & LevelEnd == true)
         {
